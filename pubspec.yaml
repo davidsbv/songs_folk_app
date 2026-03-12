@@ -38,6 +38,9 @@ dependencies:
   # Para abrir enlaces (PDF, URLs) en el navegador o app externa
   url_launcher: ^6.2.5
 
+  # Base de datos y backend en la nube (Android, iOS, Web)
+  supabase_flutter: ^2.8.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
