@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/copla.dart';
 import '../models/song_catalog.dart';
@@ -27,10 +28,14 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
 
   String? _selectedSubtypeFilter;
 
+  static const String _prefsKeyFontScale = 'coplero_font_scale';
+  double _fontScale = 1.0;
+
   @override
   void initState() {
     super.initState();
     _loadData();
+    _loadFontScale();
   }
 
   Future<void> _loadData() async {
@@ -58,6 +63,70 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
         });
       }
     }
+  }
+
+  Future<void> _loadFontScale() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getDouble(_prefsKeyFontScale);
+    if (!mounted) return;
+    setState(() {
+      _fontScale = saved != null ? saved.clamp(0.85, 2.0) : 1.0;
+    });
+  }
+
+  Future<void> _saveFontScale(double scale) async {
+    final clamped = scale.clamp(0.85, 2.0);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_prefsKeyFontScale, clamped);
+  }
+
+  Future<void> _openFontSizeDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (ctx, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Tamaño de letra'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Actual: ${(_fontScale * 100).round()}%',
+                    style: Theme.of(ctx).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Slider(
+                    value: _fontScale,
+                    min: 0.85,
+                    max: 2.0,
+                    divisions: 12,
+                    label: '${(_fontScale * 100).round()}%',
+                    onChanged: (v) {
+                      setState(() => _fontScale = v);
+                      setStateDialog(() {});
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(dialogContext);
+                    await _saveFontScale(_fontScale);
+                  },
+                  child: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _syncNow() async {
@@ -142,6 +211,11 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
                 : const Icon(Icons.cloud_download),
             tooltip: 'Actualizar datos offline',
           ),
+          IconButton(
+            onPressed: _openFontSizeDialog,
+            tooltip: 'Ajustar tamaño de letra',
+            icon: const Icon(Icons.text_fields),
+          ),
         ],
       ),
       body: Column(
@@ -219,6 +293,18 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
       itemCount: list.length,
       itemBuilder: (context, index) {
         final copla = list[index];
+
+        // Factor de escalado para mejorar la accesibilidad (visión reducida).
+        final titleFontSize =
+            (Theme.of(context).textTheme.titleSmall?.fontSize ?? 14) *
+                _fontScale;
+        final authorFontSize =
+            (Theme.of(context).textTheme.bodySmall?.fontSize ?? 12) *
+                _fontScale;
+        final bodyFontSize =
+            (Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14) *
+                _fontScale;
+
         return Card(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           child: Padding(
@@ -228,19 +314,25 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
               children: [
                 Text(
                   '${index + 1}. ${copla.subtype}',
-                  style: Theme.of(context).textTheme.titleSmall,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontSize: titleFontSize,
+                  ),
                 ),
                 if (copla.author != null && copla.author!.trim().isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
                     copla.author!,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontSize: authorFontSize,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 8),
                 Text(
                   copla.text,
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontSize: bodyFontSize,
+                  ),
                 ),
               ],
             ),
