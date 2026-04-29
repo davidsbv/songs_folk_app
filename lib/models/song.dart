@@ -7,6 +7,7 @@ import 'score.dart';
 /// - Partitura y tablatura dependen del instrumento y van en [Score].
 /// - OpenSong (acordes sobre letra, transposición) lo haremos como módulo aparte.
 class Song {
+  final String? remoteId;
   final String title;
   final String author;
   final String type; // Ej: "Jota", "Pasacalles"
@@ -23,6 +24,7 @@ class Song {
   final List<Score> scores;
 
   const Song({
+    this.remoteId,
     required this.title,
     required this.author,
     required this.type,

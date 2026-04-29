@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../models/song.dart';
+import '../models/copla.dart';
 import '../models/song_catalog.dart';
 import '../repositories/songs_repository.dart';
-import 'song_detail_screen.dart';
 
 /// Lista de canciones del Coplero: tipo elegido en la pantalla anterior (JOTA/SEGUIDILLA),
-/// filtro por subtipo ([song_catalog]) y búsqueda por título.
+/// filtro por subtipo ([song_catalog]) y listado continuo de coplas.
 class CopleroListScreen extends StatefulWidget {
   final String selectedType;
 
@@ -18,29 +17,20 @@ class CopleroListScreen extends StatefulWidget {
 
 class _CopleroListScreenState extends State<CopleroListScreen> {
   final SongsRepository _repo = SongsRepository();
-  final TextEditingController _searchController = TextEditingController();
 
-  List<Song> _songs = [];
+  List<Copla> _coplas = [];
   List<String> _subtypes = [];
   bool _loading = true;
+  bool _syncing = false;
   String? _error;
+  DateTime? _lastSyncAt;
 
   String? _selectedSubtypeFilter;
-  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _loadData();
-    _searchController.addListener(() {
-      setState(() => _searchQuery = _searchController.text.trim());
-    });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -49,12 +39,14 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
       _error = null;
     });
     try {
-      final all = await _repo.getSongs();
-      final subtypes = await _repo.getSongSubtypesByType(widget.selectedType);
+      final coplas = await _repo.getCoplasByType(widget.selectedType);
+      final subtypes = await _repo.getCoplaSubtypesByType(widget.selectedType);
+      final lastSyncAt = await _repo.getCoplasLastSyncAt();
       if (mounted) {
         setState(() {
-          _songs = all.where((s) => s.type == widget.selectedType).toList();
+          _coplas = coplas;
           _subtypes = subtypes;
+          _lastSyncAt = lastSyncAt;
           _loading = false;
         });
       }
@@ -68,17 +60,35 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
     }
   }
 
-  List<Song> get _displayedSongs {
-    var list = _songs;
+  Future<void> _syncNow() async {
+    if (_syncing) return;
+    setState(() => _syncing = true);
+    try {
+      final count = await _repo.syncCoplasCacheFromRemote();
+      await _loadData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sincronización completada: $count coplas.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo sincronizar: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _syncing = false);
+      }
+    }
+  }
+
+  List<Copla> get _displayedCoplas {
+    var list = _coplas;
     if (_selectedSubtypeFilter != null &&
         _selectedSubtypeFilter != allSubtypesKey) {
-      list = list.where((s) => s.subtype == _selectedSubtypeFilter!).toList();
-    }
-    if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery.toLowerCase();
-      list = list
-          .where((s) => s.title.toLowerCase().contains(q))
-          .toList();
+      list = list.where((c) => c.subtype == _selectedSubtypeFilter!).toList();
     }
     return list;
   }
@@ -118,7 +128,22 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(
+        title: Text(title),
+        actions: [
+          IconButton(
+            onPressed: _syncing ? null : _syncNow,
+            icon: _syncing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.cloud_download),
+            tooltip: 'Actualizar datos offline',
+          ),
+        ],
+      ),
       body: Column(
         children: [
           _buildFilters(),
@@ -136,20 +161,16 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
-            controller: _searchController,
-            decoration: const InputDecoration(
-              labelText: 'Buscar por título',
-              hintText: 'Escribe parte del título...',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
-              isDense: true,
+          if (_lastSyncAt != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Última actualización offline: ${_formatDateTime(_lastSyncAt!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
             ),
-            textInputAction: TextInputAction.search,
-          ),
-          const SizedBox(height: 12),
           DropdownButtonFormField<String?>(
-            value: _selectedSubtypeFilter ?? allSubtypesKey,
+            initialValue: _selectedSubtypeFilter ?? allSubtypesKey,
             decoration: const InputDecoration(
               labelText: 'Subtipo',
               border: OutlineInputBorder(),
@@ -174,13 +195,22 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
     );
   }
 
+  String _formatDateTime(DateTime dt) {
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final y = dt.year.toString();
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    return '$d/$m/$y $hh:$mm';
+  }
+
   Widget _buildList() {
-    final list = _displayedSongs;
+    final list = _displayedCoplas;
     if (list.isEmpty) {
       return Center(
         child: Text(
-          _searchQuery.isNotEmpty || _selectedSubtypeFilter != null
-              ? 'Ninguna canción coincide con los filtros.'
+          _selectedSubtypeFilter != null
+              ? 'No hay coplas para este subtipo.'
               : 'No hay canciones de este tipo.',
         ),
       );
@@ -188,18 +218,31 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
     return ListView.builder(
       itemCount: list.length,
       itemBuilder: (context, index) {
-        final song = list[index];
-        return ListTile(
-          title: Text(song.title),
-          subtitle: Text('${song.subtype}\n${song.author}'),
-          leading: const Icon(Icons.menu_book),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SongDetailScreen(
-                song: song,
-                showOnlyLyrics: true,
-              ),
+        final copla = list[index];
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${index + 1}. ${copla.subtype}',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                if (copla.author != null && copla.author!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    copla.author!,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  copla.text,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
             ),
           ),
         );

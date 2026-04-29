@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/song.dart';
 import '../models/score.dart';
+import 'pdf_viewer_screen.dart';
 
 /// Pantalla de detalle: letra y, si [showOnlyLyrics] es false, partituras/tablaturas.
 class SongDetailScreen extends StatelessWidget {
@@ -151,12 +152,26 @@ class SongDetailScreen extends StatelessWidget {
   }) {
     final uri = Uri.tryParse(path);
     final isUrl = uri != null && (uri.isScheme('http') || uri.isScheme('https'));
+    final isPdf = path.toLowerCase().contains('.pdf');
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: OutlinedButton.icon(
         onPressed: () async {
+          if (isPdf) {
+            if (!context.mounted) return;
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PdfViewerScreen(title: label, path: path),
+              ),
+            );
+            return;
+          }
           if (isUrl) {
-            final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+            final launched = await launchUrl(
+              uri,
+              mode: LaunchMode.inAppBrowserView,
+            );
             if (!launched && context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('No se pudo abrir el enlace')),

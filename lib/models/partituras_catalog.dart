@@ -1,7 +1,7 @@
-/// Subtipos para la pantalla de Partituras, según instrumento.
-///
-/// Solo se usan en Partituras (CUERDA / DULZAINA).
-/// Los tipos JOTA/SEGUIDILLA y sus subtipos están en [song_catalog.dart] para el Coplero.
+// Subtipos para la pantalla de Partituras, según instrumento.
+//
+// Solo se usan en Partituras (CUERDA / DULZAINA).
+// Los tipos JOTA/SEGUIDILLA y sus subtipos están en `song_catalog.dart` para el Coplero.
 
 /// Subtipos para PARTITURAS DE CUERDA.
 const List<String> subtypesCuerda = [

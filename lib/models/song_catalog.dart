@@ -1,5 +1,5 @@
-/// Tipos de canción permitidos: solo JOTA y SEGUIDILLA.
-const List<String> songTypes = ['JOTA', 'SEGUIDILLA'];
+/// Tipos de canción fallback local.
+const List<String> songTypes = ['JOTA', 'SEGUIDILLA', 'OTRO'];
 
 /// Subtipos por tipo (ej: para JOTA hay "RELIGIOSAS", "VARIAS", etc.).
 const Map<String, List<String>> subtypesByType = {

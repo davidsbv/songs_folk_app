@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../models/partituras_catalog.dart';
 import '../models/song.dart';
 import '../repositories/songs_repository.dart';
+import '../services/admin_auth_service.dart';
+import 'admin_screen.dart';
 import 'song_detail_screen.dart';
 
 /// Pantalla de partituras: instrumento (chips), tipo y subtipo de Song.
@@ -16,23 +18,39 @@ class PartiturasScreen extends StatefulWidget {
 
 class _PartiturasScreenState extends State<PartiturasScreen> {
   final SongsRepository _repo = SongsRepository();
+  final AdminAuthService _adminAuth = AdminAuthService();
 
   List<Song> _songs = [];
   List<String> _songTypes = [];
   List<String> _instruments = [];
+
   /// Subtipos de Song en Partituras por instrumento (CUERDA, DULZAINA) — partituras_catalog.
   Map<String, List<String>> _partiturasSubtypesByInstrument = {};
   bool _loading = true;
+  bool _syncing = false;
   String? _error;
+  DateTime? _lastSyncAt;
 
   String? _selectedInstrumentFilter;
   String? _selectedTypeFilter;
   String? _selectedSubtypeFilter;
 
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -44,9 +62,11 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
       final songs = await _repo.getSongs();
       final songTypes = await _repo.getSongTypes();
       final instruments = await _repo.getInstruments();
+      final lastSyncAt = await _repo.getSongsLastSyncAt();
       final partiturasSubtypes = <String, List<String>>{};
       for (final name in instruments) {
-        partiturasSubtypes[name] = await _repo.getPartiturasSubtypesByInstrument(name);
+        partiturasSubtypes[name] = await _repo
+            .getPartiturasSubtypesByInstrument(name);
       }
 
       if (mounted) {
@@ -55,6 +75,7 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
           _songTypes = songTypes;
           _instruments = instruments;
           _partiturasSubtypesByInstrument = partiturasSubtypes;
+          _lastSyncAt = lastSyncAt;
           _loading = false;
         });
       }
@@ -68,12 +89,41 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
     }
   }
 
+  Future<void> _syncNow() async {
+    if (_syncing) return;
+    setState(() => _syncing = true);
+    try {
+      final count = await _repo.syncSongsCacheFromRemote();
+      await _loadData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sincronización completada: $count canciones.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('No se pudo sincronizar: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _syncing = false);
+      }
+    }
+  }
+
   List<Song> get _displayedSongs {
     var list = _songs;
     if (_selectedInstrumentFilter != null) {
       list = list
-          .where((s) =>
-              s.scores.any((sc) => sc.instrument == _selectedInstrumentFilter))
+          .where(
+            (s) => s.scores.any(
+              (sc) => sc.instrument == _selectedInstrumentFilter,
+            ),
+          )
           .toList();
     }
     if (_selectedTypeFilter != null) {
@@ -83,7 +133,45 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
         _selectedSubtypeFilter != partiturasAllSubtypesKey) {
       list = list.where((s) => s.subtype == _selectedSubtypeFilter!).toList();
     }
+    if (_searchQuery.trim().isNotEmpty) {
+      final q = _normalizeForSearch(_searchQuery.trim());
+      list = list
+          .where(
+            (s) =>
+                _normalizeForSearch(s.title).contains(q) ||
+                _normalizeForSearch(s.author).contains(q),
+          )
+          .toList();
+    }
     return list;
+  }
+
+  String _normalizeForSearch(String input) {
+    return input
+        .toLowerCase()
+        .replaceAll('á', 'a')
+        .replaceAll('à', 'a')
+        .replaceAll('ä', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('é', 'e')
+        .replaceAll('è', 'e')
+        .replaceAll('ë', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('í', 'i')
+        .replaceAll('ì', 'i')
+        .replaceAll('ï', 'i')
+        .replaceAll('î', 'i')
+        .replaceAll('ó', 'o')
+        .replaceAll('ò', 'o')
+        .replaceAll('ö', 'o')
+        .replaceAll('ô', 'o')
+        .replaceAll('ú', 'u')
+        .replaceAll('ù', 'u')
+        .replaceAll('ü', 'u')
+        .replaceAll('û', 'u')
+        .replaceAll('ñ', 'n')
+        // Elimina diacríticos "combinantes" (p.ej. "o\u0301" en vez de "ó").
+        .replaceAll(RegExp(r'[\u0300-\u036f]'), '');
   }
 
   /// Subtipos de Song para el desplegable en Partituras: según instrumento (Cuerda/Dulzaina).
@@ -113,18 +201,201 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Partituras')),
-      body: Column(
-        children: [
-          _buildFilterChips(),
-          _buildTypeSubtypeFilters(),
-          Expanded(
-            child: _buildBody(),
-          ),
-        ],
+    return PopScope(
+      canPop: !_isSearching,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_isSearching) {
+          _exitSearch();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: _isSearching
+              ? TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  decoration: const InputDecoration(
+                    hintText: 'Buscar por título o autor…',
+                    border: InputBorder.none,
+                    isDense: true,
+                  ),
+                  textInputAction: TextInputAction.search,
+                  onChanged: _onSearchChanged,
+                )
+              : const Text('Partituras'),
+          actions: [
+            if (_isSearching) ...[
+              if (_searchQuery.isNotEmpty)
+                IconButton(
+                  tooltip: 'Limpiar',
+                  onPressed: () => setState(() {
+                    _searchController.clear();
+                    _searchQuery = '';
+                  }),
+                  icon: const Icon(Icons.clear),
+                ),
+              IconButton(
+                tooltip: 'Cerrar búsqueda',
+                onPressed: _exitSearch,
+                icon: const Icon(Icons.close),
+              ),
+            ] else ...[
+              IconButton(
+                tooltip: 'Actualizar datos offline',
+                onPressed: _syncing ? null : _syncNow,
+                icon: _syncing
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cloud_download),
+              ),
+              IconButton(
+                tooltip: 'Buscar',
+                onPressed: _enterSearch,
+                icon: const Icon(Icons.search),
+              ),
+            ],
+          ],
+        ),
+        body: Column(
+          children: [
+            _buildFilterChips(),
+            _buildTypeSubtypeFilters(),
+            Expanded(child: _buildBody()),
+          ],
+        ),
       ),
     );
+  }
+
+  void _enterSearch() {
+    setState(() => _isSearching = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _searchFocusNode.requestFocus();
+    });
+  }
+
+  Future<void> _onSearchChanged(String value) async {
+    final trimmed = value.trim();
+    if (trimmed.toLowerCase() == '/admin') {
+      _searchController.clear();
+      setState(() => _searchQuery = '');
+      await _requestAdminAccess();
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _searchQuery = value);
+  }
+
+  Future<void> _requestAdminAccess() async {
+    final emailCtrl = TextEditingController();
+    final passwordCtrl = TextEditingController();
+    String email = '';
+    String password = '';
+    bool showPassword = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setState) {
+            return AlertDialog(
+              title: const Text('Acceso Admin'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: passwordCtrl,
+                    obscureText: !showPassword,
+                    decoration: InputDecoration(
+                      labelText: 'Contrasena',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        tooltip: showPassword ? 'Ocultar' : 'Mostrar',
+                        icon: Icon(
+                          showPassword ? Icons.visibility_off : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            showPassword = !showPassword;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: <Widget>[
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    email = emailCtrl.text.trim();
+                    password = passwordCtrl.text;
+                    Navigator.pop(dialogContext, true);
+                  },
+                  child: const Text('Entrar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (!mounted || confirmed != true) return;
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Debes indicar email y contraseña.')),
+      );
+      return;
+    }
+    try {
+      await _adminAuth.signInAdmin(email: email, password: password);
+      if (!mounted) return;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const AdminScreen()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Acceso denegado'),
+          content: SingleChildScrollView(
+            child: Text('$e'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cerrar'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  void _exitSearch() {
+    _searchFocusNode.unfocus();
+    Future<void>.delayed(const Duration(milliseconds: 120), () {
+      if (!mounted) return;
+      setState(() => _isSearching = false);
+    });
   }
 
   Widget _buildBody() {
@@ -168,10 +439,8 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => SongDetailScreen(
-                song: song,
-                showOnlyLyrics: false,
-              ),
+              builder: (_) =>
+                  SongDetailScreen(song: song, showOnlyLyrics: false),
             ),
           ),
         );
@@ -181,52 +450,80 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
 
   Widget _buildTypeSubtypeFilters() {
     final subtypes = _subtypesForPartituras;
+    final typeDropdown = DropdownButtonFormField<String?>(
+      initialValue: _selectedTypeFilter,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Tipo',
+        border: OutlineInputBorder(),
+        isDense: true,
+      ),
+      items: [
+        const DropdownMenuItem(value: null, child: Text('TODOS')),
+        ..._songTypes.map((t) => DropdownMenuItem(value: t, child: Text(t))),
+      ],
+      onChanged: (v) => setState(() {
+        _selectedTypeFilter = v;
+        _selectedSubtypeFilter = null;
+      }),
+    );
+
+    final subtypeDropdown = DropdownButtonFormField<String?>(
+      initialValue: _selectedSubtypeFilter ?? partiturasAllSubtypesKey,
+      isExpanded: true,
+      decoration: const InputDecoration(
+        labelText: 'Subtipo',
+        border: OutlineInputBorder(),
+        isDense: true,
+      ),
+      items: [
+        const DropdownMenuItem(
+          value: partiturasAllSubtypesKey,
+          child: Text('Todos'),
+        ),
+        ...subtypes.map((s) => DropdownMenuItem(value: s, child: Text(s))),
+      ],
+      onChanged: (v) => setState(
+        () => _selectedSubtypeFilter = v == partiturasAllSubtypesKey ? null : v,
+      ),
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: DropdownButtonFormField<String?>(
-              value: _selectedTypeFilter,
-              decoration: const InputDecoration(
-                labelText: 'Tipo',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('TODOS')),
-                ..._songTypes.map(
-                    (t) => DropdownMenuItem(value: t, child: Text(t))),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useColumn = constraints.maxWidth < 420;
+          final status = _lastSyncAt == null
+              ? null
+              : Text(
+                  'Última actualización offline: ${_formatDateTime(_lastSyncAt!)}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                );
+          if (useColumn) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (status != null) ...[status, const SizedBox(height: 8)],
+                typeDropdown,
+                const SizedBox(height: 12),
+                subtypeDropdown,
               ],
-              onChanged: (v) => setState(() {
-                _selectedTypeFilter = v;
-                _selectedSubtypeFilter = null;
-              }),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: DropdownButtonFormField<String?>(
-              value: _selectedSubtypeFilter ?? partiturasAllSubtypesKey,
-              decoration: const InputDecoration(
-                labelText: 'Subtipo',
-                border: OutlineInputBorder(),
-                isDense: true,
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (status != null) ...[status, const SizedBox(height: 8)],
+              Row(
+                children: [
+                  Expanded(child: typeDropdown),
+                  const SizedBox(width: 12),
+                  Expanded(child: subtypeDropdown),
+                ],
               ),
-              items: [
-                const DropdownMenuItem(
-                  value: partiturasAllSubtypesKey,
-                  child: Text('Todos los subtipos'),
-                ),
-                ...subtypes.map(
-                    (s) => DropdownMenuItem(value: s, child: Text(s))),
-              ],
-              onChanged: (v) => setState(() =>
-                  _selectedSubtypeFilter =
-                      v == partiturasAllSubtypesKey ? null : v),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -245,19 +542,30 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
               _selectedSubtypeFilter = null;
             }),
           ),
-          ..._instruments.map((name) => Padding(
-                padding: const EdgeInsets.only(left: 8.0),
-                child: ChoiceChip(
-                  label: Text(name),
-                  selected: _selectedInstrumentFilter == name,
-                  onSelected: (_) => setState(() {
-                    _selectedInstrumentFilter = name;
-                    _selectedSubtypeFilter = null;
-                  }),
-                ),
-              )),
+          ..._instruments.map(
+            (name) => Padding(
+              padding: const EdgeInsets.only(left: 8.0),
+              child: ChoiceChip(
+                label: Text(name),
+                selected: _selectedInstrumentFilter == name,
+                onSelected: (_) => setState(() {
+                  _selectedInstrumentFilter = name;
+                  _selectedSubtypeFilter = null;
+                }),
+              ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final y = dt.year.toString();
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    return '$d/$m/$y $hh:$mm';
   }
 }
