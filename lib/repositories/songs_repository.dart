@@ -214,9 +214,11 @@ class SongsRepository {
   Future<int> syncSongsCacheFromRemote() async {
     final client = _client;
     if (client == null) return 0;
+    final cachedBefore = await _songsStore.getSongs();
     final songs = await _fetchSongsRemoteSnapshot();
+    final changedCount = _countChangedSongs(cachedBefore, songs);
     await _songsStore.replaceAllSongs(songs);
-    return songs.length;
+    return changedCount;
   }
 
   Future<DateTime?> getSongsLastSyncAt() {
@@ -610,6 +612,40 @@ class SongsRepository {
       tabPdfPath: row['tab_pdf_path'] as String?,
       tabImagePath: row['tab_image_path'] as String?,
     );
+  }
+
+  int _countChangedSongs(List<Song> local, List<Song> remote) {
+    final maxLen = local.length > remote.length ? local.length : remote.length;
+    var changed = 0;
+    for (var i = 0; i < maxLen; i++) {
+      if (i >= local.length || i >= remote.length) {
+        changed++;
+        continue;
+      }
+      if (_songFingerprint(local[i]) != _songFingerprint(remote[i])) {
+        changed++;
+      }
+    }
+    return changed;
+  }
+
+  String _songFingerprint(Song song) {
+    final scoreParts = song.scores
+        .map(
+          (s) =>
+              '${s.instrument}|${s.scorePdfPath ?? ''}|${s.scoreImagePath ?? ''}|${s.tabPdfPath ?? ''}|${s.tabImagePath ?? ''}',
+        )
+        .join('||');
+    return [
+      song.title,
+      song.author,
+      song.type,
+      song.subtype,
+      song.lyricsText ?? '',
+      song.lyricsPdfPath ?? '',
+      song.lyricsImagePath ?? '',
+      scoreParts,
+    ].join('###');
   }
 
   /// Tipos de canción (JOTA, SEGUIDILLA) para Coplero y Partituras.

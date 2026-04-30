@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/partituras_catalog.dart';
 import '../models/song.dart';
@@ -39,11 +40,16 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   String _searchQuery = '';
+  static const String _prefsKeyFontScaleGlobal = 'app_font_scale';
+  static const String _prefsKeyFontScaleLegacyPartituras = 'partituras_font_scale';
+  static const String _prefsKeyFontScaleLegacyCoplero = 'coplero_font_scale';
+  double _fontScale = 1.0;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _loadFontScale();
   }
 
   @override
@@ -113,6 +119,77 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
         setState(() => _syncing = false);
       }
     }
+  }
+
+  Future<void> _loadFontScale() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedGlobal = prefs.getDouble(_prefsKeyFontScaleGlobal);
+    final savedLegacyPartituras =
+        prefs.getDouble(_prefsKeyFontScaleLegacyPartituras);
+    final savedLegacyCoplero = prefs.getDouble(_prefsKeyFontScaleLegacyCoplero);
+    final saved = savedGlobal ?? savedLegacyPartituras ?? savedLegacyCoplero;
+    if (savedGlobal == null && saved != null) {
+      await prefs.setDouble(_prefsKeyFontScaleGlobal, saved);
+    }
+    if (!mounted) return;
+    setState(() {
+      _fontScale = saved != null ? saved.clamp(0.85, 2.0) : 1.0;
+    });
+  }
+
+  Future<void> _saveFontScale(double scale) async {
+    final clamped = scale.clamp(0.85, 2.0);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_prefsKeyFontScaleGlobal, clamped);
+  }
+
+  Future<void> _openFontSizeDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (ctx, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Tamaño de letra'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Actual: ${(_fontScale * 100).round()}%',
+                    style: Theme.of(ctx).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Slider(
+                    value: _fontScale,
+                    min: 0.85,
+                    max: 2.0,
+                    divisions: 12,
+                    label: '${(_fontScale * 100).round()}%',
+                    onChanged: (v) {
+                      setState(() => _fontScale = v);
+                      setStateDialog(() {});
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(dialogContext);
+                    await _saveFontScale(_fontScale);
+                  },
+                  child: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   List<Song> get _displayedSongs {
@@ -256,6 +333,11 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
                 tooltip: 'Buscar',
                 onPressed: _enterSearch,
                 icon: const Icon(Icons.search),
+              ),
+              IconButton(
+                tooltip: 'Ajustar tamaño de letra',
+                onPressed: _openFontSizeDialog,
+                icon: const Icon(Icons.text_fields),
               ),
             ],
           ],
@@ -430,17 +512,35 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
       itemCount: _displayedSongs.length,
       itemBuilder: (context, index) {
         final song = _displayedSongs[index];
+        final titleFontSize =
+            (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) *
+                _fontScale;
+        final subtitleFontSize =
+            (Theme.of(context).textTheme.bodyMedium?.fontSize ?? 14) *
+                _fontScale;
         return ListTile(
-          title: Text(song.title),
+          title: Text(
+            song.title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontSize: titleFontSize,
+                ),
+          ),
           subtitle: Text(
             '${song.type} · ${song.subtype}\n${song.author}\n${_instrumentsSummary(song)}',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontSize: subtitleFontSize,
+                ),
           ),
           leading: const Icon(Icons.music_note),
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
               builder: (_) =>
-                  SongDetailScreen(song: song, showOnlyLyrics: false),
+                  SongDetailScreen(
+                song: song,
+                showOnlyLyrics: false,
+                fontScale: _fontScale,
+              ),
             ),
           ),
         );

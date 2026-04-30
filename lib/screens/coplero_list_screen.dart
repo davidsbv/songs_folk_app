@@ -28,7 +28,9 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
 
   String? _selectedSubtypeFilter;
 
-  static const String _prefsKeyFontScale = 'coplero_font_scale';
+  static const String _prefsKeyFontScaleGlobal = 'app_font_scale';
+  static const String _prefsKeyFontScaleLegacyCoplero = 'coplero_font_scale';
+  static const String _prefsKeyFontScaleLegacyPartituras = 'partituras_font_scale';
   double _fontScale = 1.0;
 
   @override
@@ -67,7 +69,14 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
 
   Future<void> _loadFontScale() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getDouble(_prefsKeyFontScale);
+    final savedGlobal = prefs.getDouble(_prefsKeyFontScaleGlobal);
+    final savedLegacyCoplero = prefs.getDouble(_prefsKeyFontScaleLegacyCoplero);
+    final savedLegacyPartituras =
+        prefs.getDouble(_prefsKeyFontScaleLegacyPartituras);
+    final saved = savedGlobal ?? savedLegacyCoplero ?? savedLegacyPartituras;
+    if (savedGlobal == null && saved != null) {
+      await prefs.setDouble(_prefsKeyFontScaleGlobal, saved);
+    }
     if (!mounted) return;
     setState(() {
       _fontScale = saved != null ? saved.clamp(0.85, 2.0) : 1.0;
@@ -77,7 +86,7 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
   Future<void> _saveFontScale(double scale) async {
     final clamped = scale.clamp(0.85, 2.0);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_prefsKeyFontScale, clamped);
+    await prefs.setDouble(_prefsKeyFontScaleGlobal, clamped);
   }
 
   Future<void> _openFontSizeDialog() async {

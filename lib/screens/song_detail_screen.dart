@@ -9,11 +9,13 @@ import 'pdf_viewer_screen.dart';
 class SongDetailScreen extends StatelessWidget {
   final Song song;
   final bool showOnlyLyrics;
+  final double fontScale;
 
   const SongDetailScreen({
     super.key,
     required this.song,
     this.showOnlyLyrics = false,
+    this.fontScale = 1.0,
   });
 
   @override
@@ -28,22 +30,22 @@ class SongDetailScreen extends StatelessWidget {
             children: [
               Text(
                 song.title,
-                style: const TextStyle(
-                  fontSize: 24,
+                style: TextStyle(
+                  fontSize: 24 * fontScale,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const SizedBox(height: 8),
-              Text('Estilo: ${song.type}', style: const TextStyle(fontSize: 16)),
-              Text('Subtipo: ${song.subtype}', style: const TextStyle(fontSize: 16)),
-              Text('Autor: ${song.author}', style: const TextStyle(fontSize: 16)),
+              Text('Estilo: ${song.type}', style: TextStyle(fontSize: 16 * fontScale)),
+              Text('Subtipo: ${song.subtype}', style: TextStyle(fontSize: 16 * fontScale)),
+              Text('Autor: ${song.author}', style: TextStyle(fontSize: 16 * fontScale)),
               const SizedBox(height: 16),
               const Divider(),
               const SizedBox(height: 16),
-              _sectionTitle('Letra'),
+              _sectionTitle('Letra', fontScale: fontScale),
               const SizedBox(height: 8),
               if (song.lyricsText != null && song.lyricsText!.isNotEmpty)
-                Text(song.lyricsText!, style: const TextStyle(fontSize: 16)),
+                Text(song.lyricsText!, style: TextStyle(fontSize: 16 * fontScale)),
               if (song.lyricsText != null &&
                   song.lyricsText!.isNotEmpty &&
                   (song.lyricsPdfPath != null || song.lyricsImagePath != null))
@@ -59,23 +61,29 @@ class SongDetailScreen extends StatelessWidget {
                 _imageFromPath(song.lyricsImagePath!),
               ],
               if (_noLyrics(song))
-                const Text(
-                  'Sin letra cargada. Puedes añadir texto, PDF o imagen más adelante.',
-                  style: TextStyle(fontStyle: FontStyle.italic),
+                Text(
+                  'Sin letra cargada.',
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    fontSize: 14 * fontScale,
+                  ),
                 ),
               if (!showOnlyLyrics) ...[
                 const SizedBox(height: 24),
                 const Divider(),
                 const SizedBox(height: 16),
-                _sectionTitle('Partituras y tablaturas'),
+                _sectionTitle('Partituras y tablaturas', fontScale: fontScale),
                 const SizedBox(height: 8),
                 if (song.scores.isEmpty)
-                  const Text(
+                  Text(
                     'No hay partituras/tablaturas cargadas todavía.',
-                    style: TextStyle(fontStyle: FontStyle.italic),
+                    style: TextStyle(
+                      fontStyle: FontStyle.italic,
+                      fontSize: 14 * fontScale,
+                    ),
                   ),
                 for (final score in song.scores) ...[
-                  _scoreBlock(context, score),
+                  _scoreBlock(context, score, fontScale: fontScale),
                   const SizedBox(height: 16),
                 ],
               ],
@@ -93,16 +101,29 @@ class SongDetailScreen extends StatelessWidget {
     return !hasText && !hasPdf && !hasImage;
   }
 
-  Widget _scoreBlock(BuildContext context, Score score) {
+  Widget _scoreBlock(
+    BuildContext context,
+    Score score, {
+    required double fontScale,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Instrumento: ${score.instrument}',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          style: TextStyle(
+            fontSize: 16 * fontScale,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 8),
-        const Text('Partitura', style: TextStyle(fontWeight: FontWeight.w600)),
+        Text(
+          'Partitura',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14 * fontScale,
+          ),
+        ),
         const SizedBox(height: 6),
         if (score.scorePdfPath != null)
           _openLinkButton(
@@ -112,12 +133,21 @@ class SongDetailScreen extends StatelessWidget {
           ),
         if (score.scoreImagePath != null) _imageFromPath(score.scoreImagePath!),
         if (score.scorePdfPath == null && score.scoreImagePath == null)
-          const Text(
+          Text(
             'Sin partitura cargada.',
-            style: TextStyle(fontStyle: FontStyle.italic),
+            style: TextStyle(
+              fontStyle: FontStyle.italic,
+              fontSize: 14 * fontScale,
+            ),
           ),
         const SizedBox(height: 12),
-        const Text('Tablatura', style: TextStyle(fontWeight: FontWeight.w600)),
+        Text(
+          'Tablatura',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14 * fontScale,
+          ),
+        ),
         const SizedBox(height: 6),
         if (score.tabPdfPath != null)
           _openLinkButton(
@@ -127,19 +157,22 @@ class SongDetailScreen extends StatelessWidget {
           ),
         if (score.tabImagePath != null) _imageFromPath(score.tabImagePath!),
         if (score.tabPdfPath == null && score.tabImagePath == null)
-          const Text(
+          Text(
             'Sin tablatura cargada.',
-            style: TextStyle(fontStyle: FontStyle.italic),
+            style: TextStyle(
+              fontStyle: FontStyle.italic,
+              fontSize: 14 * fontScale,
+            ),
           ),
       ],
     );
   }
 
-  Widget _sectionTitle(String text) {
+  Widget _sectionTitle(String text, {required double fontScale}) {
     return Text(
       text,
-      style: const TextStyle(
-        fontSize: 18,
+      style: TextStyle(
+        fontSize: 18 * fontScale,
         fontWeight: FontWeight.w600,
       ),
     );
