@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/admin_auth_service.dart';
 import '../widgets/menu_tile.dart';
 import 'admin_create_copla_screen.dart';
+import 'admin_events_screen.dart';
 import 'admin_create_song_screen.dart';
 import 'admin_edit_coplas_screen.dart';
 import 'admin_edit_songs_screen.dart';
@@ -70,6 +71,16 @@ class AdminScreen extends StatelessWidget {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AdminEditCoplasScreen()),
+              ),
+            ),
+            const SizedBox(height: 16),
+            MenuTile(
+              title: 'EDITAR CALENDARIO',
+              subtitle: 'Gestion de eventos del calendario',
+              icon: Icons.event,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminEventsScreen()),
               ),
             ),
           ],

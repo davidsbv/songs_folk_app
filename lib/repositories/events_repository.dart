@@ -44,6 +44,74 @@ class EventsRepository {
     }
   }
 
+  Future<List<Event>> getAdminEvents() async {
+    final client = _client;
+    if (client == null) {
+      final now = DateTime.now();
+      return _sampleEventsForMonth(DateTime(now.year, now.month, 1));
+    }
+
+    final response = await client
+        .from('events')
+        .select(
+          'id, title, description, start_at, end_at, all_day, location, updated_at, deleted_at',
+        )
+        .isFilter('deleted_at', null)
+        .order('start_at', ascending: true);
+    final list = response as List<dynamic>? ?? [];
+    return list
+        .map((row) => _eventFromRemoteRow(row as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> createEvent(Event event) async {
+    final client = _client;
+    if (client == null) {
+      throw Exception('Supabase no esta configurado en esta ejecucion.');
+    }
+    await client.from('events').insert({
+      'title': event.title.trim(),
+      'description': _emptyToNull(event.description),
+      'start_at': event.startAt.toUtc().toIso8601String(),
+      'end_at': event.endAt.toUtc().toIso8601String(),
+      'all_day': event.allDay,
+      'location': _emptyToNull(event.location),
+    });
+  }
+
+  Future<void> updateEvent(Event event) async {
+    final client = _client;
+    if (client == null) {
+      throw Exception('Supabase no esta configurado en esta ejecucion.');
+    }
+    final eventId = event.remoteId;
+    if (eventId == null || eventId.isEmpty) {
+      throw Exception('El evento no tiene id remoto para poder editarse.');
+    }
+    await client
+        .from('events')
+        .update({
+          'title': event.title.trim(),
+          'description': _emptyToNull(event.description),
+          'start_at': event.startAt.toUtc().toIso8601String(),
+          'end_at': event.endAt.toUtc().toIso8601String(),
+          'all_day': event.allDay,
+          'location': _emptyToNull(event.location),
+        })
+        .eq('id', eventId);
+  }
+
+  Future<void> deleteEvent(String eventId) async {
+    final client = _client;
+    if (client == null) {
+      throw Exception('Supabase no esta configurado en esta ejecucion.');
+    }
+    await client
+        .from('events')
+        .update({'deleted_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', eventId);
+  }
+
   Event _eventFromRemoteRow(Map<String, dynamic> row) {
     final startAt =
         DateTime.tryParse(row['start_at'] as String? ?? '') ?? DateTime.now();
@@ -89,5 +157,10 @@ class EventsRepository {
         location: 'Recinto ferial',
       ),
     ];
+  }
+
+  String? _emptyToNull(String? value) {
+    final trimmed = value?.trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
   }
 }
