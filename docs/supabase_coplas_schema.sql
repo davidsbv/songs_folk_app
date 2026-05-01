@@ -5,6 +5,22 @@ begin;
 
 create extension if not exists pgcrypto;
 
+create or replace function public.is_admin(_uid uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.admin_users a
+    where a.user_id = _uid
+  );
+$$;
+
+grant execute on function public.is_admin(uuid) to anon, authenticated;
+
 -- Tabla de administradores de la app.
 -- Debe contener los UUID de usuarios de Supabase Auth con acceso al panel admin.
 create table if not exists admin_users (
@@ -85,17 +101,17 @@ using (user_id = auth.uid());
 drop policy if exists "insert coplas admin only" on public.coplas;
 create policy "insert coplas admin only"
 on public.coplas for insert to authenticated
-with check (exists (select 1 from admin_users a where a.user_id = auth.uid()));
+with check (public.is_admin(auth.uid()));
 
 drop policy if exists "update coplas admin only" on public.coplas;
 create policy "update coplas admin only"
 on public.coplas for update to authenticated
-using (exists (select 1 from admin_users a where a.user_id = auth.uid()))
-with check (exists (select 1 from admin_users a where a.user_id = auth.uid()));
+using (public.is_admin(auth.uid()))
+with check (public.is_admin(auth.uid()));
 
 drop policy if exists "delete coplas admin only" on public.coplas;
 create policy "delete coplas admin only"
 on public.coplas for delete to authenticated
-using (exists (select 1 from admin_users a where a.user_id = auth.uid()));
+using (public.is_admin(auth.uid()));
 
 commit;

@@ -66,19 +66,21 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
   String _formatRange(Event event) {
     final sameDay = isSameDay(event.startAt, event.endAt);
     final hasEndTime = !event.startAt.isAtSameMomentAs(event.endAt);
+    final startDate =
+        '${_twoDigits(event.startAt.day)}/${_twoDigits(event.startAt.month)}';
+    final endDate = '${_twoDigits(event.endAt.day)}/${_twoDigits(event.endAt.month)}';
     if (event.allDay) {
       return sameDay
-          ? 'Todo el dia'
-          : '${event.startAt.day}/${event.startAt.month} - ${event.endAt.day}/${event.endAt.month}';
+          ? '$startDate · Todo el dia'
+          : '$startDate - $endDate · Todo el dia';
     }
     final startHour = _twoDigits(event.startAt.hour);
     final startMin = _twoDigits(event.startAt.minute);
     final endHour = _twoDigits(event.endAt.hour);
     final endMin = _twoDigits(event.endAt.minute);
-    if (!hasEndTime) return '$startHour:$startMin';
-    if (sameDay) return '$startHour:$startMin - $endHour:$endMin';
-    return '${event.startAt.day}/${event.startAt.month} $startHour:$startMin - '
-        '${event.endAt.day}/${event.endAt.month} $endHour:$endMin';
+    if (!hasEndTime) return '$startDate · $startHour:$startMin';
+    if (sameDay) return '$startDate · $startHour:$startMin - $endHour:$endMin';
+    return '$startDate $startHour:$startMin - $endDate $endHour:$endMin';
   }
 
   String _twoDigits(int value) => value < 10 ? '0$value' : '$value';

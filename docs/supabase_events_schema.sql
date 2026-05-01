@@ -5,6 +5,22 @@ begin;
 
 create extension if not exists pgcrypto;
 
+create or replace function public.is_admin(_uid uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.admin_users a
+    where a.user_id = _uid
+  );
+$$;
+
+grant execute on function public.is_admin(uuid) to anon, authenticated;
+
 create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -67,18 +83,18 @@ using (deleted_at is null);
 drop policy if exists "insert events admin only" on public.events;
 create policy "insert events admin only"
 on public.events for insert to authenticated
-with check (exists (select 1 from public.admin_users a where a.user_id = auth.uid()));
+with check (public.is_admin(auth.uid()));
 
 drop policy if exists "update events admin only" on public.events;
 create policy "update events admin only"
 on public.events for update to authenticated
-using (exists (select 1 from public.admin_users a where a.user_id = auth.uid()))
-with check (exists (select 1 from public.admin_users a where a.user_id = auth.uid()));
+using (public.is_admin(auth.uid()))
+with check (public.is_admin(auth.uid()));
 
 -- Opcionalmente podrías quitar esta policy si prefieres solo soft-delete por update(deleted_at).
 drop policy if exists "delete events admin only" on public.events;
 create policy "delete events admin only"
 on public.events for delete to authenticated
-using (exists (select 1 from public.admin_users a where a.user_id = auth.uid()));
+using (public.is_admin(auth.uid()));
 
 commit;
