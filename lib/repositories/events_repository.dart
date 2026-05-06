@@ -112,10 +112,29 @@ class EventsRepository {
     if (client == null) {
       throw Exception('Supabase no esta configurado en esta ejecucion.');
     }
-    await client
-        .from('events')
-        .update({'deleted_at': DateTime.now().toUtc().toIso8601String()})
-        .eq('id', eventId);
+    // Sin .select(): si pedimos la fila devuelta, PostgREST aplica las políticas SELECT
+    // sobre la fila *ya actualizada*. La política pública exige deleted_at IS NULL y el
+    // soft-delete rompe eso → PostgrestException "new row violates row-level security".
+    try {
+      await client
+          .from('events')
+          .update({'deleted_at': DateTime.now().toUtc().toIso8601String()})
+          .eq('id', eventId)
+          .isFilter('deleted_at', null);
+      return;
+    } catch (_) {
+      final deleted = await client
+          .from('events')
+          .delete()
+          .eq('id', eventId)
+          .select('id')
+          .maybeSingle();
+      if (deleted == null) {
+        throw Exception(
+          'No se pudo eliminar el evento. Revisa permisos RLS de UPDATE/DELETE en events.',
+        );
+      }
+    }
   }
 
   Event _eventFromRemoteRow(Map<String, dynamic> row) {

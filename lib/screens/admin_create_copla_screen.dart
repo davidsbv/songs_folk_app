@@ -96,7 +96,12 @@ class _AdminCreateCoplaScreenState extends State<AdminCreateCoplaScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedType == null || _selectedSubtype == null) return;
+    if (_selectedType == null || _selectedSubtype == null) {
+      await _showUserMessage('Selecciona tipo y subtipo para continuar.');
+      return;
+    }
+    final confirmed = await _confirmSave();
+    if (confirmed != true) return;
     setState(() => _saving = true);
     try {
       if (widget.initialCopla != null) {
@@ -122,21 +127,15 @@ class _AdminCreateCoplaScreenState extends State<AdminCreateCoplaScreen> {
       await _repo.syncCoplasCacheFromRemote();
       await _repo.syncSongsCacheFromRemote();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.initialCopla != null
-                ? 'Copla actualizada correctamente.'
-                : 'Copla creada correctamente.',
-          ),
-        ),
+      await _showUserMessage(
+        widget.initialCopla != null
+            ? 'Copla actualizada correctamente.'
+            : 'Copla creada correctamente.',
       );
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo guardar: $e')),
-      );
+      await _showUserMessage('No se pudo guardar: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -239,5 +238,52 @@ class _AdminCreateCoplaScreenState extends State<AdminCreateCoplaScreen> {
   String? _emptyToNull(String value) {
     final trimmed = value.trim();
     return trimmed.isEmpty ? null : trimmed;
+  }
+
+  Future<void> _showUserMessage(String message) async {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger != null) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        content: Text(message),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Aceptar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _confirmSave() {
+    final isEdit = widget.initialCopla != null;
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(isEdit ? 'Confirmar cambios' : 'Confirmar alta'),
+        content: Text(
+          isEdit
+              ? 'Se guardarán los cambios de esta copla. ¿Deseas continuar?'
+              : 'Se creará una nueva copla. ¿Deseas continuar?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
   }
 }

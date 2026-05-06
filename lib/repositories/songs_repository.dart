@@ -328,7 +328,7 @@ class SongsRepository {
       throw Exception('Subtipo de copla no encontrado: ${copla.subtype}');
     }
 
-    await client
+    final updated = await client
         .from('coplas')
         .update({
           'copla_type_id': typeId,
@@ -336,7 +336,15 @@ class SongsRepository {
           'text': copla.text,
           'author': copla.author,
         })
-        .eq('id', remoteId);
+        .eq('id', remoteId)
+        .isFilter('deleted_at', null)
+        .select('id')
+        .maybeSingle();
+    if (updated == null) {
+      throw Exception(
+        'No se pudo actualizar la copla. Revisa permisos RLS o si ya estaba eliminada.',
+      );
+    }
   }
 
   Future<void> updateSong(Song song) async {
@@ -391,10 +399,33 @@ class SongsRepository {
     if (client == null) {
       throw Exception('Supabase no está configurado en esta ejecución.');
     }
-    await client
+    // Intentamos primero borrado lógico (soft delete) para propagar la baja por sync incremental.
+    final updated = await client
         .from('coplas')
         .update({'deleted_at': DateTime.now().toUtc().toIso8601String()})
-        .eq('id', remoteId);
+        .eq('id', remoteId)
+        .isFilter('deleted_at', null)
+        .select('id')
+        .maybeSingle();
+    if (updated != null) return;
+
+    // Si RLS impide actualizar deleted_at, intentamos borrado físico como fallback.
+    final deleted = await client
+        .from('coplas')
+        .delete()
+        .eq('id', remoteId)
+        .select('id')
+        .maybeSingle();
+    if (deleted == null) {
+      throw Exception(
+        'No se pudo eliminar la copla. Revisa permisos RLS de UPDATE/DELETE en coplas.',
+      );
+    }
+
+    // El borrado físico no deja "tombstone"; forzamos snapshot completo para limpiar caché local.
+    final full = await _fetchCoplasFullSnapshot();
+    await _coplasStore.replaceAllCoplas(full);
+    await _coplasStore.setCoplasRemoteCursorAt(DateTime.now().toUtc());
   }
 
   Future<void> deleteSong(String remoteId) async {

@@ -154,9 +154,7 @@ class _AdminEditCoplasScreenState extends State<AdminEditCoplasScreen> {
   Future<void> _confirmDelete(Copla copla) async {
     final id = copla.remoteId;
     if (id == null || id.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se puede eliminar: copla sin id remoto.')),
-      );
+      await _showUserMessage('No se puede eliminar: copla sin id remoto.');
       return;
     }
     final ok = await showDialog<bool>(
@@ -179,36 +177,41 @@ class _AdminEditCoplasScreenState extends State<AdminEditCoplasScreen> {
     if (ok != true) return;
     if (!mounted) return;
     final previous = List<Copla>.from(_coplas);
-    var undo = false;
     setState(() {
       _coplas = _coplas.where((c) => c.remoteId != id).toList();
     });
-    final messenger = ScaffoldMessenger.of(context);
-    final result = await messenger.showSnackBar(
-      SnackBar(
-        content: const Text('Copla preparada para eliminar'),
-        action: SnackBarAction(
-          label: 'Deshacer',
-          onPressed: () => undo = true,
-        ),
-        duration: const Duration(seconds: 4),
-      ),
-    ).closed;
-    if (!mounted) return;
-    if (undo || result == SnackBarClosedReason.action) {
-      setState(() => _coplas = previous);
-      return;
-    }
     try {
       await _repo.deleteCopla(id);
       await _repo.syncCoplasCacheFromRemote();
       if (!mounted) return;
-      messenger.showSnackBar(const SnackBar(content: Text('Copla eliminada.')));
+      await _showUserMessage('Copla eliminada.');
       await _load();
     } catch (e) {
       if (!mounted) return;
       setState(() => _coplas = previous);
-      messenger.showSnackBar(SnackBar(content: Text('No se pudo eliminar: $e')));
+      await _showUserMessage('No se pudo eliminar: $e');
     }
+  }
+
+  Future<void> _showUserMessage(String message) async {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger != null) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        content: Text(message),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Aceptar'),
+          ),
+        ],
+      ),
+    );
   }
 }

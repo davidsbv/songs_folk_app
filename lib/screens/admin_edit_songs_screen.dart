@@ -150,9 +150,7 @@ class _AdminEditSongsScreenState extends State<AdminEditSongsScreen> {
   Future<void> _confirmDelete(Song song) async {
     final id = song.remoteId;
     if (id == null || id.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se puede eliminar: canción sin id remoto.')),
-      );
+      await _showUserMessage('No se puede eliminar: canción sin id remoto.');
       return;
     }
     final ok = await showDialog<bool>(
@@ -175,36 +173,41 @@ class _AdminEditSongsScreenState extends State<AdminEditSongsScreen> {
     if (ok != true) return;
     if (!mounted) return;
     final previous = List<Song>.from(_songs);
-    var undo = false;
     setState(() {
       _songs = _songs.where((s) => s.remoteId != id).toList();
     });
-    final messenger = ScaffoldMessenger.of(context);
-    final result = await messenger.showSnackBar(
-      SnackBar(
-        content: const Text('Canción preparada para eliminar'),
-        action: SnackBarAction(
-          label: 'Deshacer',
-          onPressed: () => undo = true,
-        ),
-        duration: const Duration(seconds: 4),
-      ),
-    ).closed;
-    if (!mounted) return;
-    if (undo || result == SnackBarClosedReason.action) {
-      setState(() => _songs = previous);
-      return;
-    }
     try {
       await _repo.deleteSong(id);
       await _repo.syncSongsCacheFromRemote();
       if (!mounted) return;
-      messenger.showSnackBar(const SnackBar(content: Text('Canción eliminada.')));
+      await _showUserMessage('Canción eliminada.');
       await _load();
     } catch (e) {
       if (!mounted) return;
       setState(() => _songs = previous);
-      messenger.showSnackBar(SnackBar(content: Text('No se pudo eliminar: $e')));
+      await _showUserMessage('No se pudo eliminar: $e');
     }
+  }
+
+  Future<void> _showUserMessage(String message) async {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger != null) {
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        content: Text(message),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Aceptar'),
+          ),
+        ],
+      ),
+    );
   }
 }

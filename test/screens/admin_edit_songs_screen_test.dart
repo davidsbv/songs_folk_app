@@ -93,7 +93,7 @@ void main() {
     expect(repo.deleteCalled, isFalse);
   });
 
-  testWidgets('confirma borrado y aplica eliminación optimista', (tester) async {
+  testWidgets('confirma borrado y elimina la canción', (tester) async {
     final repo = _FakeSongsAdminRepo();
     await tester.pumpWidget(
       MaterialApp(home: AdminEditSongsScreen(repository: repo)),
@@ -109,9 +109,11 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Eliminar'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Ronda'), findsNothing);
-    expect(find.text('Canción preparada para eliminar'), findsOneWidget);
+    expect(repo.deleteCalled, isTrue);
+    expect(repo.deletedId, 'song-1');
+    expect(find.text('Canción eliminada.'), findsOneWidget);
   });
 }

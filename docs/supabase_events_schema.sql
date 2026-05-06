@@ -80,6 +80,12 @@ create policy "read events public"
 on public.events for select to anon, authenticated
 using (deleted_at is null);
 
+-- Admins: pueden leer también eventos marcados como borrados (p. ej. RETURNING tras UPDATE).
+drop policy if exists "read events admin all" on public.events;
+create policy "read events admin all"
+on public.events for select to authenticated
+using (public.is_admin(auth.uid()));
+
 drop policy if exists "insert events admin only" on public.events;
 create policy "insert events admin only"
 on public.events for insert to authenticated
@@ -90,6 +96,9 @@ create policy "update events admin only"
 on public.events for update to authenticated
 using (public.is_admin(auth.uid()))
 with check (public.is_admin(auth.uid()));
+
+-- Importante: no añadas aquí un WITH CHECK del estilo (deleted_at is null).
+-- El borrado logico en la app hace UPDATE estableciendo deleted_at y la fila nueva tendria deleted_at no nulo.
 
 -- Opcionalmente podrías quitar esta policy si prefieres solo soft-delete por update(deleted_at).
 drop policy if exists "delete events admin only" on public.events;

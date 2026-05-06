@@ -89,7 +89,7 @@ void main() {
     expect(repo.deleteCalled, isFalse);
   });
 
-  testWidgets('confirma borrado y aplica eliminación optimista', (tester) async {
+  testWidgets('confirma borrado y elimina la copla', (tester) async {
     final repo = _FakeCoplasAdminRepo();
     await tester.pumpWidget(
       MaterialApp(home: AdminEditCoplasScreen(repository: repo)),
@@ -105,9 +105,11 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Eliminar'));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('JOTA · MAYO'), findsNothing);
-    expect(find.text('Copla preparada para eliminar'), findsOneWidget);
+    expect(repo.deleteCalled, isTrue);
+    expect(repo.deletedId, 'copla-1');
+    expect(find.text('Copla eliminada.'), findsOneWidget);
   });
 }
