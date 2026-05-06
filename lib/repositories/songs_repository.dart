@@ -13,17 +13,27 @@ import '../services/songs_local_store.dart';
 
 /// Repositorio de canciones: usa Supabase si está configurado, si no datos locales.
 class SongsRepository {
-  SongsRepository._();
+  SongsRepository({
+    CoplasLocalStore? coplasStore,
+    SongsLocalStore? songsStore,
+    SupabaseClient? client,
+    bool? isSupabaseConfigured,
+  }) : _coplasStore = coplasStore ?? CoplasLocalStore(),
+       _songsStore = songsStore ?? SongsLocalStore(),
+       _clientOverride = client,
+       _isSupabaseConfiguredOverride = isSupabaseConfigured;
 
-  static final SongsRepository _instance = SongsRepository._();
-
-  factory SongsRepository() => _instance;
-  final CoplasLocalStore _coplasStore = CoplasLocalStore();
-  final SongsLocalStore _songsStore = SongsLocalStore();
+  final CoplasLocalStore _coplasStore;
+  final SongsLocalStore _songsStore;
+  final SupabaseClient? _clientOverride;
+  final bool? _isSupabaseConfiguredOverride;
   static const String _otherSongTypeName = 'OTRO';
 
   SupabaseClient? get _client =>
-      isSupabaseConfigured ? Supabase.instance.client : null;
+      _clientOverride ??
+      ((_isSupabaseConfiguredOverride ?? isSupabaseConfigured)
+          ? Supabase.instance.client
+          : null);
 
   /// Todas las canciones con sus partituras/tablaturas.
   Future<List<Song>> getSongs({bool forceRefresh = false}) async {

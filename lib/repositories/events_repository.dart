@@ -6,14 +6,20 @@ import '../models/event.dart';
 /// Repositorio de eventos: usa Supabase si está configurado y
 /// recurre a datos de ejemplo cuando no hay backend disponible.
 class EventsRepository {
-  EventsRepository._();
+  EventsRepository({
+    SupabaseClient? client,
+    bool? isSupabaseConfigured,
+  }) : _clientOverride = client,
+       _isSupabaseConfiguredOverride = isSupabaseConfigured;
 
-  static final EventsRepository _instance = EventsRepository._();
-
-  factory EventsRepository() => _instance;
+  final SupabaseClient? _clientOverride;
+  final bool? _isSupabaseConfiguredOverride;
 
   SupabaseClient? get _client =>
-      isSupabaseConfigured ? Supabase.instance.client : null;
+      _clientOverride ??
+      ((_isSupabaseConfiguredOverride ?? isSupabaseConfigured)
+          ? Supabase.instance.client
+          : null);
 
   Future<List<Event>> getEventsForMonth(DateTime month) async {
     final monthStart = DateTime(month.year, month.month, 1);

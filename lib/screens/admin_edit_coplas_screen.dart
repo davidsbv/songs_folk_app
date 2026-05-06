@@ -5,14 +5,17 @@ import '../repositories/songs_repository.dart';
 import 'admin_create_copla_screen.dart';
 
 class AdminEditCoplasScreen extends StatefulWidget {
-  const AdminEditCoplasScreen({super.key});
+  const AdminEditCoplasScreen({super.key, SongsRepository? repository})
+    : _repository = repository;
+
+  final SongsRepository? _repository;
 
   @override
   State<AdminEditCoplasScreen> createState() => _AdminEditCoplasScreenState();
 }
 
 class _AdminEditCoplasScreenState extends State<AdminEditCoplasScreen> {
-  final SongsRepository _repo = SongsRepository();
+  late final SongsRepository _repo;
   final TextEditingController _searchCtrl = TextEditingController();
   List<Copla> _coplas = const [];
   bool _loading = true;
@@ -22,6 +25,7 @@ class _AdminEditCoplasScreenState extends State<AdminEditCoplasScreen> {
   @override
   void initState() {
     super.initState();
+    _repo = widget._repository ?? SongsRepository();
     _load();
   }
 
@@ -135,7 +139,8 @@ class _AdminEditCoplasScreenState extends State<AdminEditCoplasScreen> {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => AdminCreateCoplaScreen(initialCopla: copla),
+                  builder: (_) =>
+                      AdminCreateCoplaScreen(initialCopla: copla, repository: _repo),
                 ),
               );
               await _load();

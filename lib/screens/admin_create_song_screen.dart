@@ -7,8 +7,9 @@ import '../services/admin_upload_service.dart';
 
 class AdminCreateSongScreen extends StatefulWidget {
   final Song? initialSong;
+  final SongsRepository? repository;
 
-  const AdminCreateSongScreen({super.key, this.initialSong});
+  const AdminCreateSongScreen({super.key, this.initialSong, this.repository});
 
   @override
   State<AdminCreateSongScreen> createState() => _AdminCreateSongScreenState();
@@ -16,7 +17,7 @@ class AdminCreateSongScreen extends StatefulWidget {
 
 class _AdminCreateSongScreenState extends State<AdminCreateSongScreen> {
   static const String _otherSubtype = 'OTRO';
-  final _repo = SongsRepository();
+  late final SongsRepository _repo;
   final _uploadService = AdminUploadService();
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
@@ -42,6 +43,7 @@ class _AdminCreateSongScreenState extends State<AdminCreateSongScreen> {
   @override
   void initState() {
     super.initState();
+    _repo = widget.repository ?? SongsRepository();
     final initial = widget.initialSong;
     if (initial != null) {
       _titleCtrl.text = initial.title;

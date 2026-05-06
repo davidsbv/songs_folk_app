@@ -9,15 +9,20 @@ import '../repositories/songs_repository.dart';
 /// filtro por subtipo ([song_catalog]) y listado continuo de coplas.
 class CopleroListScreen extends StatefulWidget {
   final String selectedType;
+  final SongsRepository? repository;
 
-  const CopleroListScreen({super.key, required this.selectedType});
+  const CopleroListScreen({
+    super.key,
+    required this.selectedType,
+    this.repository,
+  });
 
   @override
   State<CopleroListScreen> createState() => _CopleroListScreenState();
 }
 
 class _CopleroListScreenState extends State<CopleroListScreen> {
-  final SongsRepository _repo = SongsRepository();
+  late final SongsRepository _repo;
 
   List<Copla> _coplas = [];
   List<String> _subtypes = [];
@@ -36,6 +41,7 @@ class _CopleroListScreenState extends State<CopleroListScreen> {
   @override
   void initState() {
     super.initState();
+    _repo = widget.repository ?? SongsRepository();
     _loadData();
     _loadFontScale();
   }

@@ -6,38 +6,57 @@ import '../models/event.dart';
 import '../repositories/events_repository.dart';
 
 class CalendarioScreen extends StatefulWidget {
-  const CalendarioScreen({super.key});
+  const CalendarioScreen({super.key, EventsRepository? eventsRepository})
+    : _eventsRepository = eventsRepository;
+
+  final EventsRepository? _eventsRepository;
 
   @override
   State<CalendarioScreen> createState() => _CalendarioScreenState();
 }
 
 class _CalendarioScreenState extends State<CalendarioScreen> {
-  final EventsRepository _eventsRepository = EventsRepository();
+  late final EventsRepository _eventsRepository;
 
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   bool _loading = true;
+  String? _error;
   List<Event> _eventsInMonth = const [];
   int _monthRequestId = 0;
 
   @override
   void initState() {
     super.initState();
+    _eventsRepository = widget._eventsRepository ?? EventsRepository();
     _loadMonth(_focusedDay);
   }
 
   Future<void> _loadMonth(DateTime month) async {
     final requestId = ++_monthRequestId;
-    setState(() => _loading = true);
-    final events = await _eventsRepository.getEventsForMonth(month);
-    if (!mounted) return;
-    if (requestId != _monthRequestId) return;
     setState(() {
-      _focusedDay = month;
-      _eventsInMonth = events;
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final events = await _eventsRepository.getEventsForMonth(month);
+      if (!mounted) return;
+      if (requestId != _monthRequestId) return;
+      setState(() {
+        _focusedDay = month;
+        _eventsInMonth = events;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      if (requestId != _monthRequestId) return;
+      setState(() {
+        _focusedDay = month;
+        _eventsInMonth = const [];
+        _error = '$e';
+        _loading = false;
+      });
+    }
   }
 
   List<Event> _eventsForDay(DateTime day) {
@@ -149,6 +168,20 @@ class _CalendarioScreenState extends State<CalendarioScreen> {
                 padding: EdgeInsets.symmetric(vertical: 24),
                 child: CircularProgressIndicator(),
               ))
+            else if (_error != null)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('No se pudieron cargar los eventos.'),
+                      const SizedBox(height: 8),
+                      Text(_error!),
+                    ],
+                  ),
+                ),
+              )
             else ...[
               Text(
                 _selectedDay == null

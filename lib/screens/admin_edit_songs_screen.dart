@@ -5,14 +5,17 @@ import '../repositories/songs_repository.dart';
 import 'admin_create_song_screen.dart';
 
 class AdminEditSongsScreen extends StatefulWidget {
-  const AdminEditSongsScreen({super.key});
+  const AdminEditSongsScreen({super.key, SongsRepository? repository})
+    : _repository = repository;
+
+  final SongsRepository? _repository;
 
   @override
   State<AdminEditSongsScreen> createState() => _AdminEditSongsScreenState();
 }
 
 class _AdminEditSongsScreenState extends State<AdminEditSongsScreen> {
-  final SongsRepository _repo = SongsRepository();
+  late final SongsRepository _repo;
   final TextEditingController _searchCtrl = TextEditingController();
   List<Song> _songs = const [];
   bool _loading = true;
@@ -22,6 +25,7 @@ class _AdminEditSongsScreenState extends State<AdminEditSongsScreen> {
   @override
   void initState() {
     super.initState();
+    _repo = widget._repository ?? SongsRepository();
     _load();
   }
 
@@ -131,7 +135,8 @@ class _AdminEditSongsScreenState extends State<AdminEditSongsScreen> {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => AdminCreateSongScreen(initialSong: song),
+                  builder: (_) =>
+                      AdminCreateSongScreen(initialSong: song, repository: _repo),
                 ),
               );
               await _load();

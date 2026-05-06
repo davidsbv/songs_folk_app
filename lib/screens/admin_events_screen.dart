@@ -5,23 +5,29 @@ import '../models/event.dart';
 import '../repositories/events_repository.dart';
 
 class AdminEventsScreen extends StatelessWidget {
-  const AdminEventsScreen({super.key});
+  const AdminEventsScreen({super.key, EventsRepository? repository})
+    : _repository = repository;
+
+  final EventsRepository? _repository;
 
   @override
   Widget build(BuildContext context) {
-    return const _AdminEventsView();
+    return _AdminEventsView(repository: _repository);
   }
 }
 
 class _AdminEventsView extends StatefulWidget {
-  const _AdminEventsView();
+  const _AdminEventsView({EventsRepository? repository})
+    : _repository = repository;
+
+  final EventsRepository? _repository;
 
   @override
   State<_AdminEventsView> createState() => _AdminEventsViewState();
 }
 
 class _AdminEventsViewState extends State<_AdminEventsView> {
-  final EventsRepository _repo = EventsRepository();
+  late final EventsRepository _repo;
   List<Event> _events = const [];
   bool _loading = true;
   String? _error;
@@ -29,6 +35,7 @@ class _AdminEventsViewState extends State<_AdminEventsView> {
   @override
   void initState() {
     super.initState();
+    _repo = widget._repository ?? EventsRepository();
     _load();
   }
 
@@ -57,7 +64,10 @@ class _AdminEventsViewState extends State<_AdminEventsView> {
     final changed = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => _AdminEventFormScreen(initialEvent: initialEvent),
+        builder: (_) => _AdminEventFormScreen(
+          initialEvent: initialEvent,
+          repository: _repo,
+        ),
       ),
     );
     if (changed == true) {
@@ -188,15 +198,16 @@ class _AdminEventsViewState extends State<_AdminEventsView> {
 
 class _AdminEventFormScreen extends StatefulWidget {
   final Event? initialEvent;
+  final EventsRepository? repository;
 
-  const _AdminEventFormScreen({this.initialEvent});
+  const _AdminEventFormScreen({this.initialEvent, this.repository});
 
   @override
   State<_AdminEventFormScreen> createState() => _AdminEventFormScreenState();
 }
 
 class _AdminEventFormScreenState extends State<_AdminEventFormScreen> {
-  final EventsRepository _repo = EventsRepository();
+  late final EventsRepository _repo;
   final _formKey = GlobalKey<FormState>();
   final _titleCtrl = TextEditingController();
   final _descriptionCtrl = TextEditingController();
@@ -210,6 +221,7 @@ class _AdminEventFormScreenState extends State<_AdminEventFormScreen> {
   @override
   void initState() {
     super.initState();
+    _repo = widget.repository ?? EventsRepository();
     final initial = widget.initialEvent;
     if (initial != null) {
       _titleCtrl.text = initial.title;

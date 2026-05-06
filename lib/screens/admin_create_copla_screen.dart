@@ -5,15 +5,20 @@ import '../repositories/songs_repository.dart';
 
 class AdminCreateCoplaScreen extends StatefulWidget {
   final Copla? initialCopla;
+  final SongsRepository? repository;
 
-  const AdminCreateCoplaScreen({super.key, this.initialCopla});
+  const AdminCreateCoplaScreen({
+    super.key,
+    this.initialCopla,
+    this.repository,
+  });
 
   @override
   State<AdminCreateCoplaScreen> createState() => _AdminCreateCoplaScreenState();
 }
 
 class _AdminCreateCoplaScreenState extends State<AdminCreateCoplaScreen> {
-  final _repo = SongsRepository();
+  late final SongsRepository _repo;
   final _formKey = GlobalKey<FormState>();
   final _authorCtrl = TextEditingController();
   final _textCtrl = TextEditingController();
@@ -29,6 +34,7 @@ class _AdminCreateCoplaScreenState extends State<AdminCreateCoplaScreen> {
   @override
   void initState() {
     super.initState();
+    _repo = widget.repository ?? SongsRepository();
     final initial = widget.initialCopla;
     if (initial != null) {
       _authorCtrl.text = initial.author ?? '';
