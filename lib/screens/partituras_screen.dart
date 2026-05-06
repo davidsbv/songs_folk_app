@@ -3,23 +3,37 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/partituras_catalog.dart';
 import '../models/song.dart';
-import '../repositories/songs_repository.dart';
+import '../repositories/partituras_repository.dart';
 import '../services/admin_auth_service.dart';
+import '../services/admin_credentials_store.dart';
+import '../widgets/admin_access_dialog.dart';
 import 'admin_screen.dart';
 import 'song_detail_screen.dart';
 
 /// Pantalla de partituras: instrumento (chips), tipo y subtipo de Song.
 /// En Partituras el desplegable Subtipo usa los catálogos de Cuerda/Dulzaina (partituras_catalog / partituras_subtypes).
 class PartiturasScreen extends StatefulWidget {
-  const PartiturasScreen({super.key});
+  const PartiturasScreen({
+    super.key,
+    PartiturasRepository? repository,
+    AdminAuthGateway? adminAuth,
+    AdminCredentialsStoreBase? adminCredentialsStore,
+  }) : _repository = repository,
+       _adminAuth = adminAuth,
+       _adminCredentialsStore = adminCredentialsStore;
+
+  final PartiturasRepository? _repository;
+  final AdminAuthGateway? _adminAuth;
+  final AdminCredentialsStoreBase? _adminCredentialsStore;
 
   @override
   State<PartiturasScreen> createState() => _PartiturasScreenState();
 }
 
 class _PartiturasScreenState extends State<PartiturasScreen> {
-  final SongsRepository _repo = SongsRepository();
-  final AdminAuthService _adminAuth = AdminAuthService();
+  late final PartiturasRepository _repo;
+  late final AdminAuthGateway _adminAuth;
+  late final AdminCredentialsStoreBase _adminCredentialsStore;
 
   List<Song> _songs = [];
   List<String> _songTypes = [];
@@ -48,6 +62,10 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
   @override
   void initState() {
     super.initState();
+    _repo = widget._repository ?? SongsPartiturasRepository();
+    _adminAuth = widget._adminAuth ?? AdminAuthService();
+    _adminCredentialsStore =
+        widget._adminCredentialsStore ?? AdminCredentialsStore();
     _loadData();
     _loadFontScale();
   }
@@ -374,71 +392,21 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
   }
 
   Future<void> _requestAdminAccess() async {
-    final emailCtrl = TextEditingController();
-    final passwordCtrl = TextEditingController();
-    String email = '';
-    String password = '';
-    bool showPassword = false;
-    final confirmed = await showDialog<bool>(
+    final savedAdminCredentials = await _adminCredentialsStore.load();
+    final dialogResult = await showDialog<AdminAccessDialogResult>(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setState) {
-            return AlertDialog(
-              title: const Text('Acceso Admin'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: passwordCtrl,
-                    obscureText: !showPassword,
-                    decoration: InputDecoration(
-                      labelText: 'Contrasena',
-                      border: const OutlineInputBorder(),
-                      suffixIcon: IconButton(
-                        tooltip: showPassword ? 'Ocultar' : 'Mostrar',
-                        icon: Icon(
-                          showPassword ? Icons.visibility_off : Icons.visibility,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            showPassword = !showPassword;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              actions: <Widget>[
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Cancelar'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    email = emailCtrl.text.trim();
-                    password = passwordCtrl.text;
-                    Navigator.pop(dialogContext, true);
-                  },
-                  child: const Text('Entrar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) => AdminAccessDialog(
+        initialEmail: savedAdminCredentials.email,
+        initialPassword: savedAdminCredentials.password,
+        initialRememberPassword: savedAdminCredentials.rememberPassword,
+      ),
     );
-    if (!mounted || confirmed != true) return;
+    if (!mounted || dialogResult == null) return;
+
+    final email = dialogResult.email;
+    final password = dialogResult.password;
+    final rememberPassword = dialogResult.rememberPassword;
+
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Debes indicar email y contraseña.')),
@@ -447,6 +415,11 @@ class _PartiturasScreenState extends State<PartiturasScreen> {
     }
     try {
       await _adminAuth.signInAdmin(email: email, password: password);
+      await _adminCredentialsStore.save(
+        rememberPassword: rememberPassword,
+        email: email,
+        password: password,
+      );
       if (!mounted) return;
       await Navigator.push(
         context,

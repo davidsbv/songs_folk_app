@@ -5,6 +5,7 @@ import '../widgets/menu_tile.dart';
 import 'admin_create_copla_screen.dart';
 import 'admin_events_screen.dart';
 import 'admin_create_song_screen.dart';
+import 'admin_appearance_screen.dart';
 import 'admin_edit_coplas_screen.dart';
 import 'admin_edit_songs_screen.dart';
 
@@ -29,10 +30,9 @@ class AdminScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             MenuTile(
               title: 'ALTA DE CANCION',
@@ -81,6 +81,16 @@ class AdminScreen extends StatelessWidget {
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const AdminEventsScreen()),
+              ),
+            ),
+            const SizedBox(height: 16),
+            MenuTile(
+              title: 'APARIENCIA GLOBAL',
+              subtitle: 'Colores y fondo para todos los usuarios (Supabase)',
+              icon: Icons.palette_outlined,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminAppearanceScreen()),
               ),
             ),
           ],

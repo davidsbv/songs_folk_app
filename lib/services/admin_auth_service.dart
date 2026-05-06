@@ -2,15 +2,40 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/supabase_config.dart';
 
-class AdminAuthService {
-  AdminAuthService._();
+abstract class AdminAuthGateway {
+  Future<void> signInAdmin({
+    required String email,
+    required String password,
+  });
+}
+
+class AdminAuthService implements AdminAuthGateway {
+  AdminAuthService._({
+    SupabaseClient? clientOverride,
+    bool? isSupabaseConfiguredOverride,
+  }) : _clientOverride = clientOverride,
+       _isSupabaseConfiguredOverride = isSupabaseConfiguredOverride;
 
   static final AdminAuthService _instance = AdminAuthService._();
 
   factory AdminAuthService() => _instance;
 
+  AdminAuthService.withDependencies({
+    SupabaseClient? client,
+    bool? isSupabaseConfigured,
+  }) : this._(
+         clientOverride: client,
+         isSupabaseConfiguredOverride: isSupabaseConfigured,
+       );
+
+  final SupabaseClient? _clientOverride;
+  final bool? _isSupabaseConfiguredOverride;
+
   SupabaseClient? get _client =>
-      isSupabaseConfigured ? Supabase.instance.client : null;
+      _clientOverride ??
+      ((_isSupabaseConfiguredOverride ?? isSupabaseConfigured)
+          ? Supabase.instance.client
+          : null);
 
   Future<void> signInAdmin({
     required String email,

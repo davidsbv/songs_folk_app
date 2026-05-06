@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app_branding.dart';
 import '../widgets/menu_tile.dart';
 import 'calendario_screen.dart';
 import 'coplero_choose_type_screen.dart';
@@ -9,10 +10,56 @@ import 'partituras_screen.dart';
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
 
+  static String _themeLabel(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.system:
+        return 'Seguir sistema';
+      case ThemeMode.light:
+        return 'Claro';
+      case ThemeMode.dark:
+        return 'Oscuro';
+    }
+  }
+
+  static IconData _iconForTheme(ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.light:
+        return Icons.light_mode_outlined;
+      case ThemeMode.dark:
+        return Icons.dark_mode_outlined;
+      case ThemeMode.system:
+        return Icons.brightness_auto_outlined;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final branding = AppBranding.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Cancionero Folk')),
+      appBar: AppBar(
+        title: const Text('Cancionero Folk'),
+        actions: [
+          PopupMenuButton<ThemeMode>(
+            tooltip: 'Aspecto (solo este dispositivo)',
+            icon: Icon(_iconForTheme(branding.themeMode)),
+            onSelected: (mode) => branding.setUserThemeMode(mode),
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: ThemeMode.system,
+                child: Text(_themeLabel(ThemeMode.system)),
+              ),
+              PopupMenuItem(
+                value: ThemeMode.light,
+                child: Text(_themeLabel(ThemeMode.light)),
+              ),
+              PopupMenuItem(
+                value: ThemeMode.dark,
+                child: Text(_themeLabel(ThemeMode.dark)),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(

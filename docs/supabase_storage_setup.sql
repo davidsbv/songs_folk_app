@@ -1,6 +1,7 @@
 -- Configuracion de Supabase Storage para songs_folk_app.
 -- Este script es idempotente y se puede re-ejecutar.
 -- Bucket esperado por la app: songs-assets (ver lib/core/supabase_config.dart)
+-- Rutas usadas por la app: archivos de canciones/partituras y appearance/app-background (fondo global).
 
 begin;
 
